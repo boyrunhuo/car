@@ -29,6 +29,7 @@ export default {
 <style lang="scss" scoped>
 #commonRoute {
   width: 3.4rem;
+  margin-bottom: .2rem;
   .common-route-header {
     & > span:nth-child(2) {
       float: right;
@@ -45,6 +46,7 @@ export default {
     background-color: #8cc5ff;
     padding:.1rem;
     margin-top:.1rem;
+    border-radius: .05rem;
     & > p {
       color: #928f8f;
       text-align:center;

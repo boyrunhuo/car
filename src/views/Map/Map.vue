@@ -2,14 +2,15 @@
   <div id="map">
     <div class="search-wrap">
       <div>
-        <span @click="inputAddress">
+        <span @click="inputCity">
           <span>{{city}}</span>
           <i class="el-icon-caret-bottom"></i>
+          <!-- <el-input ref="cityInputRef" id="cityInput" v-if="isCitySelectVisual" placeholder="城市名" v-model="cityInputContent"></el-input> -->
         </span>
         <input
           @click="inputAddress"
           id="tipInput"
-          v-model="addressName"
+          v-model="inputAddressName"
           :placeholder="inputPlaceholder"
         />
         <span @click="backToHome">取消</span>
@@ -33,53 +34,93 @@
         </div>
       </div>
     </transition>
+    <transition enter-active-class="animated faster slideInUp">
+      <div id="citySelecterWrap" v-if="isCitySelectVisual">
+        <citySelecter ref="citySelectRef" @handleSelectCity="handleSelectCity"></citySelecter>
+      </div>
+    </transition>
 
-    <div v-if="!isTipOutputVisual" class="address-detail-wrap"></div>
-    <div v-if="!isTipOutputVisual" id="GDMap" v-loading="loading"></div>
+    <div
+      v-show="!isTipOutputVisual && !isCitySelectVisual && pointType !== 'endPointer'"
+      class="address-detail-wrap"
+    >
+      <div>
+        <p class="address-name">{{addressName}}</p>
+        <p class="address-detail">
+          <i class="el-icon-location-outline"></i>
+          <span>{{addressDetail}}</span>
+        </p>
+      </div>
+      <div class="submit-btn">
+        <span @click="submitAddress">确定</span>
+      </div>
+    </div>
+    <div
+      v-show="!isTipOutputVisual && !isCitySelectVisual && pointType !== 'endPointer'"
+      id="GDMap"
+      v-loading="loading"
+    ></div>
   </div>
 </template>
 
 <script>
-import loadMap from "./loadMap";
+// import loadMap from "./loadMap";
 import AMap from "AMap";
+import mapMixin from "@/mixin/mapMixin";
+import utils from "@/utils";
+import citySelecter from "./citySelecter";
+import Vue from "vue";
+import { Toast } from "vant";
+Vue.use(Toast);
+
 export default {
   data() {
     return {
-      // 地图实例
-      GDMap: null,
-      // 加载的一些插件
-      // 更多参考：https://lbs.amap.com/api/javascript-api/guide/abc/plugins#plugins
-      plugins: ["AMap.Geolocation", "AMap.Autocomplete"],
-      // key
-      key: "dbf6b3581005e3497224e724ea1c6814",
-      // 地图版本
-      v: "1.4.15",
       loading: true,
       addressName: "",
+      inputAddressName: "",
+      addressDetail: "",
       autoInput: {},
       inputPlaceholder: "",
       city: "",
+      cityInputContent: "",
       isTipOutputVisual: false,
-      tipsList: []
+      isCitySelectVisual: false,
+      tipsList: [],
+      pointType: "",
+      lnglat: [] //经纬度,
     };
   },
+  mixins: [mapMixin],
+
   beforeRouteEnter(to, from, next) {
     next(vm => {
-      let pointType = localStorage.getItem("pointType");
-      if (pointType === "startPointer") {
+      vm.pointType = localStorage.getItem("pointType");
+
+      if (vm.pointType === "startPointer") {
         vm.inputPlaceholder = "从哪儿出发";
-      } else if (pointType === "endPointer") {
+      } else if (vm.pointType === "endPointer") {
         vm.inputPlaceholder = "你要去哪儿";
       }
     });
   },
-
   mounted() {
-    this.mapInit();
+    //初始化地图
+    let currentCity = localStorage.getItem("currentCity");
+    this.city = currentCity ? currentCity : "";
+    this.dragMap("GDMap", this.dragSuccess, this.dragFail);
+  },
+  components: {
+    citySelecter
   },
   watch: {
-    addressName(val) {
-      this.autoInputTip(val);
+    inputAddressName(val) {
+      if (this.isTipOutputVisual) {
+        this.autoInputTip(val);
+      }
+    },
+    cityInputContent(val) {
+      this.$refs.citySelectRef.searchCity(val);
     }
   },
   filters: {
@@ -94,60 +135,33 @@ export default {
     }
   },
   methods: {
-    mapInit() {
-      //初始化地图
-      loadMap(this.key, this.plugins, this.v)
-        .then(AMap => {
-          this.GDMap = new AMap.Map("GDMap", {
-            zoom: 11,
-            center: [116.397428, 39.90923]
-          });
-          AMap.plugin("AMap.Geolocation", () => {
-            var geolocation = new AMap.Geolocation({
-              enableHighAccuracy: true, //是否使用高精度定位，默认:true
-              timeout: 10000, //超过10秒后停止定位，默认：5s
-              buttonPosition: "RB", //定位按钮的停靠位置
-              buttonOffset: new AMap.Pixel(10, 100), //定位按钮与设置的停靠位置的偏移量，默认：Pixel(10, 20)
-              zoomToAccuracy: true, //定位成功后是否自动调整地图视野到定位点
-              markerOptions: {
-                content:
-                  '<img src="https://a.amap.com/jsapi_demos/static/resource/img/user.png" style="width:36px;height:36px"/>'
-              }
-            });
-            //添加精确定位插件
-            this.GDMap.addControl(geolocation);
-            geolocation.getCurrentPosition((status, result) => {
-              if (status == "complete") {
-                this.onComplete(result);
-              } else {
-                this.onError();
-              }
-            });
-          });
+    dragSuccess(data) {
+      //拖拽定位成功
 
-          //加载完成
-          this.GDMap.on("complete", () => {
-            this.loading = false;
-          });
-        })
-        .catch(() => {
-          this.loading = false;
-          this.$message({
-            message: "地图加载失败",
-            type: "warning"
-          });
-        });
+      this.loading = false;
+      let currentCity = data.regeocode.addressComponent.city;
+      this.city = currentCity;
+      localStorage.setItem("currentCity", currentCity);
+      this.lnglat = [data.position.lng, data.position.lat];
+
+      this.addressName = utils.addSuffix(data.address, 14);
+      this.addressDetail = utils.addSuffix(data.address, 19);
     },
-    onComplete(data) {
-      //定位成功
-      this.city = data.addressComponent.city;
+    dragFail(data) {},
+    submitAddress() {
+      this.regeoCode(this.lnglat)
+        .then(res => {
+          //根据起点还是终点将位置信息存储到对应的localStorage里
+          let obj = Object.assign({}, res.regeocode);
+          obj.lnglat = this.lnglat;
+          this.setSelectedAddressInfo(JSON.stringify(obj));
+          this.judgePath();
+        })
+        .catch(err => {});
     },
     onError() {
       //解析定位错误信息
-      this.$message({
-        message: "定位失败",
-        type: "warning"
-      });
+      Toast("定位失败");
     },
     backToHome() {
       this.$router.push({
@@ -169,39 +183,38 @@ export default {
     inputAddress() {
       //输入地址
       this.isTipOutputVisual = true;
+      this.isCitySelectVisual = false;
+    },
+    inputCity() {
+      //输入城市
+      this.isCitySelectVisual = true;
+      this.isTipOutputVisual = false;
     },
     selectAddress(addressInfo) {
-      let pointType = localStorage.getItem("pointType");
-      let lnglat = [addressInfo.location.lng, addressInfo.location.lat];
-      this.regeoCode(lnglat);
+      //从提示中选择成功的回调
+      this.isTipOutputVisual = false;
+
+      this.addressName = addressInfo.name;
+
+      this.lnglat = [addressInfo.location.lng, addressInfo.location.lat];
+      this.regeoCode(this.lnglat)
+        .then(res => {
+          let obj = Object.assign({}, res.regeocode);
+          obj.lnglat = this.lnglat;
+          //根据起点还是终点将位置信息存储到对应的localStorage里
+          this.setSelectedAddressInfo(JSON.stringify(obj));
+          this.judgePath();
+        })
+        .catch(err => {});
     },
-    regeoCode(lnglat) {
-      let pointType = localStorage.getItem("pointType")
-        ? localStorage.getItem("pointType")
-        : "startPointer";
-      //地理逆解码
-      AMap.plugin("AMap.Geocoder", () => {
-        let geocoder = new AMap.Geocoder();
-        geocoder.getAddress(lnglat, (status, result) => {
-          if (status === "complete" && result.regeocode) {
-            //根据起点还是终点将位置信息存储到对应的localStorage里
-            let selectedAddressInfo =
-              pointType === "startPointer"
-                ? "selectedStartAddressInfo"
-                : "selectedEndAddressInfo";
-            localStorage.setItem(
-              selectedAddressInfo,
-              JSON.stringify(result.regeocode)
-            );
-            this.judgePath();
-          } else {
-            this.$message({
-              message: "查询位置失败,请重新选择位置",
-              type: "warning"
-            });
-          }
-        });
-      });
+
+    setSelectedAddressInfo(data) {
+      //存储地理逆解码后得到的位置信息
+      let selectedAddressInfo =
+        this.pointType === "startPointer"
+          ? "selectedStartAddressInfo"
+          : "selectedEndAddressInfo";
+      localStorage.setItem(selectedAddressInfo, data);
     },
     judgePath() {
       //判断要跳转到哪个路由
@@ -226,6 +239,12 @@ export default {
       this.$router.push({
         path: path
       });
+    },
+    handleSelectCity(city) {
+      //选择中城市的回调
+      this.city = city.name;
+      localStorage.setItem("currentCity", city.name);
+      this.isCitySelectVisual = false;
     }
   }
 };
@@ -295,6 +314,7 @@ export default {
         padding: 0 0.1rem;
         outline: none;
         vertical-align: middle;
+        font-size: 0.12rem;
       }
     }
   }
@@ -308,14 +328,44 @@ export default {
     transform: translateX(-50%);
     border-radius: 0.05rem;
     z-index: 999;
+    & > div:nth-child(1) {
+      width: 2.4rem;
+      display: inline-block;
+      height: 0.4rem;
+      padding: 0.2rem 0.1rem;
+      & > p {
+        overflow: hidden;
+        white-space: nowrap;
+        height: 0.2rem;
+        line-height: 0.2rem;
+      }
+      & > .address-detail {
+        font-size: 0.12rem;
+        color: #868484;
+      }
+    }
+    & > .submit-btn {
+      display: inline-block;
+      width: 0.8rem;
+      height: 0.8rem;
+      line-height: 0.8rem;
+      vertical-align: bottom;
+      text-align: center;
+      padding: 0;
+      & > span {
+        padding: 0 0.2rem;
+        width: 0.4rem;
+        border-left: 0.01rem solid #868484;
+      }
+    }
   }
+
   #tipOutput {
     height: 100vh;
     position: absolute;
     top: 0.5rem;
     padding: 0.1rem 3%;
     width: 94%;
-    overflow-y: scroll;
     .tip-wrap {
       border-bottom: 0.01rem solid #eae4e4;
       padding: 0.1rem 0;
@@ -339,5 +389,19 @@ export default {
       }
     }
   }
+  #citySelecterWrap {
+    position: absolute;
+    top: 0.5rem;
+    width: 100%;
+  }
+}
+</style>
+<style>
+#map #cityInput {
+  height: 0.3rem;
+  border: 0;
+  outline: 0;
+  border-radius: 0;
+  background-color: #efefef;
 }
 </style>

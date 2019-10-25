@@ -1,0 +1,7 @@
+@font-face {
+  font-family: "WenQuanWeiMiHei";
+  /* 路径为绝对路径 */
+  src: url("WenQuanWeiMiHei.ttf") format("font-truetype");
+  font-weight: normal;
+  font-style: normal;
+}

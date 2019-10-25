@@ -11,13 +11,29 @@ export default {
 </script>
 
 <style>
+/* @import "./assets/fonts/font.css"; */
 
-html,body {
+@font-face {
+  font-family: WenQuanWeiMiHei;
+  /* 路径为绝对路径 */
+  src: url("/assets/fonts/WenQuanWeiMiHei.ttf")  ;
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: BASE;
+  src: local("Microsoft Yahei");
+}
+html,
+body {
   height: 100%;
   font-size: 0.16rem;
+  font-family:BASE
 }
 * {
   margin: 0;
   padding: 0;
+
 }
 </style>
