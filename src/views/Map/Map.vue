@@ -13,11 +13,11 @@
           v-model="inputAddressName"
           :placeholder="inputPlaceholder"
         />
-        <span @click="backToHome">取消</span>
+        <span @click="goBack">取消</span>
       </div>
     </div>
     <transition enter-active-class="animated faster slideInUp">
-      <div v-if="isTipOutputVisual">
+      <div class="address-tip" v-if="isTipOutputVisual">
         <div id="tipOutput" v-show="tipsList.length>0">
           <div
             @click="selectAddress(tip)"
@@ -67,10 +67,12 @@
 // import loadMap from "./loadMap";
 import AMap from "AMap";
 import mapMixin from "@/mixin/mapMixin";
+import routeMixin from "@/mixin/routeMixin";
 import utils from "@/utils";
 import citySelecter from "./citySelecter";
 import Vue from "vue";
 import { Toast } from "vant";
+
 Vue.use(Toast);
 
 export default {
@@ -88,15 +90,15 @@ export default {
       isCitySelectVisual: false,
       tipsList: [],
       pointType: "",
-      lnglat: [] //经纬度,
+      lnglat: [], //经纬度,
+      commonlyUsedAddressList: [],
+      fromRoute: ""
     };
   },
-  mixins: [mapMixin],
+  mixins: [mapMixin,routeMixin],
 
   beforeRouteEnter(to, from, next) {
     next(vm => {
-      vm.pointType = localStorage.getItem("pointType");
-
       if (vm.pointType === "startPointer") {
         vm.inputPlaceholder = "从哪儿出发";
       } else if (vm.pointType === "endPointer") {
@@ -104,11 +106,17 @@ export default {
       }
     });
   },
+  beforeRouteLeave(to, from, next) {
+    this.removeRouteHistory()
+    next();
+  },
   mounted() {
     //初始化地图
-    let currentCity = localStorage.getItem("currentCity");
+    let currentCity = this.$storage.get("currentCity");
     this.city = currentCity ? currentCity : "";
     this.dragMap("GDMap", this.dragSuccess, this.dragFail);
+    this.initData();
+    this.getCommonlyUsedAddressList();
   },
   components: {
     citySelecter
@@ -135,13 +143,17 @@ export default {
     }
   },
   methods: {
+    initData() {
+      this.pointType = this.$storage.get("pointType");
+      this.fromRoute = this.getRouteHistory()
+    },
     dragSuccess(data) {
       //拖拽定位成功
 
       this.loading = false;
       let currentCity = data.regeocode.addressComponent.city;
       this.city = currentCity;
-      localStorage.setItem("currentCity", currentCity);
+      this.$storage.set("currentCity", currentCity);
       this.lnglat = [data.position.lng, data.position.lat];
 
       this.addressName = utils.addSuffix(data.address, 14);
@@ -154,7 +166,7 @@ export default {
           //根据起点还是终点将位置信息存储到对应的localStorage里
           let obj = Object.assign({}, res.regeocode);
           obj.lnglat = this.lnglat;
-          this.setSelectedAddressInfo(JSON.stringify(obj));
+          this.setSelectedAddressInfo(obj);
           this.judgePath();
         })
         .catch(err => {});
@@ -163,10 +175,16 @@ export default {
       //解析定位错误信息
       Toast("定位失败");
     },
-    backToHome() {
-      this.$router.push({
-        name: "home"
-      });
+    goBack() {
+      if (!this.fromRoute) {
+        this.$router.push({
+          name: "home"
+        });
+      } else {
+        this.$router.push({
+          name: "addCommonRoute"
+        });
+      }
     },
     autoInputTip(keywords) {
       //添加自动提示
@@ -193,57 +211,100 @@ export default {
     selectAddress(addressInfo) {
       //从提示中选择成功的回调
       this.isTipOutputVisual = false;
-
       this.addressName = addressInfo.name;
+      let lng = addressInfo.location
+        ? addressInfo.location.lng
+        : addressInfo.origin.split(",")[0];
+      let lat = addressInfo.location
+        ? addressInfo.location.lat
+        : addressInfo.origin.split(",")[1];
+      this.lnglat = [lng, lat];
 
-      this.lnglat = [addressInfo.location.lng, addressInfo.location.lat];
       this.regeoCode(this.lnglat)
         .then(res => {
           let obj = Object.assign({}, res.regeocode);
           obj.lnglat = this.lnglat;
+
           //根据起点还是终点将位置信息存储到对应的localStorage里
-          this.setSelectedAddressInfo(JSON.stringify(obj));
+          this.setSelectedAddressInfo(obj);
           this.judgePath();
         })
         .catch(err => {});
     },
-
+    getCommonlyUsedAddressList() {
+      //获取常用位置
+      this.commonlyUsedAddressList = [];
+      let url =
+        this.pointType === "startPointer"
+          ? "/order/get_suggest_origin"
+          : "/order/get_suggest_destination";
+      this.$http
+        .get(url)
+        .then(res => {
+          this.commonlyUsedAddressList = res.data;
+          this.commonlyUsedAddressList.forEach(item => {
+            item.name = item.originName
+              ? utils.addSuffix(item.originName, 18)
+              : utils.addSuffix(item.destinationName, 18);
+            item.district = "";
+            item.address = item.originName
+              ? utils.addSuffix(item.originName, 24)
+              : utils.addSuffix(item.destinationName, 24);
+            item.origin = item.origin ? item.origin : item.destination;
+          });
+          this.tipsList = this.commonlyUsedAddressList;
+        })
+        .catch(err => {});
+    },
     setSelectedAddressInfo(data) {
       //存储地理逆解码后得到的位置信息
       let selectedAddressInfo =
         this.pointType === "startPointer"
           ? "selectedStartAddressInfo"
           : "selectedEndAddressInfo";
-      localStorage.setItem(selectedAddressInfo, data);
+      this.$storage.set(selectedAddressInfo, data);
+
+      //存储常用路线
+      let commonRoute =
+        this.pointType === "startPointer"
+          ? "commonStartPoint"
+          : "commonEndPoint";
+      this.$storage.set(commonRoute, data);
     },
     judgePath() {
       //判断要跳转到哪个路由
-      let path;
-      if (
-        localStorage.getItem("selectedStartAddressInfo") &&
-        localStorage.getItem("selectedEndAddressInfo")
-      ) {
-        //起点和终点都有了，跳转到发布行程页面
-        path = "/releaseRouter";
-      } else if (
-        localStorage.getItem("selectedStartAddressInfo") &&
-        !localStorage.getItem("selectedEndAddressInfo")
-      ) {
-        //只有起点，没有终点，跳回到主页
-        path = "/";
+      let pathName;
+      if (this.fromRoute === "addCommonRoute") {
+        //如果是从“常用路线”页面跳转过来的
+
+        pathName = "addCommonRoute";
       } else {
-        //其他情况也回主页
-        path = "/";
+        if (
+          this.$storage.get("selectedStartAddressInfo") &&
+          this.$storage.get("selectedEndAddressInfo")
+        ) {
+          //起点和终点都有了，跳转到发布行程页面
+          pathName = "releaseRouter";
+        } else if (
+          this.$storage.get("selectedStartAddressInfo") &&
+          !this.$storage.get("selectedEndAddressInfo")
+        ) {
+          //只有起点，没有终点，跳回到主页
+          pathName = "home";
+        } else {
+          //其他情况也回主页
+          pathName = "home";
+        }
       }
 
       this.$router.push({
-        path: path
+        name: pathName
       });
     },
     handleSelectCity(city) {
       //选择中城市的回调
       this.city = city.name;
-      localStorage.setItem("currentCity", city.name);
+      this.$storage.set("currentCity", city.name);
       this.isCitySelectVisual = false;
     }
   }
@@ -255,6 +316,7 @@ export default {
 <style lang="scss" scoped>
 #map {
   min-height: 100vh;
+  background-color: #e8e8e8;
   #GDMap {
     min-height: 100vh;
     position: relative;
@@ -267,6 +329,7 @@ export default {
     background-color: #fff;
     position: fixed;
     top: 0;
+
     & > div {
       position: relative;
       left: 50%;
@@ -318,6 +381,42 @@ export default {
       }
     }
   }
+  .address-tip {
+    position: relative;
+    top: 0.6rem;
+
+    #tipOutput {
+      height: calc(100vh - 0.9rem);
+      position: absolute;
+      padding: 0.1rem 3%;
+      width: 94%;
+      margin-top: 0.1rem;
+      background-color: #fff;
+      .tip-wrap {
+        border-bottom: 0.01rem solid #eae4e4;
+        padding: 0.1rem 0;
+        width: 100%;
+        height: 0.4rem;
+
+        & > p {
+          overflow: hidden;
+        }
+        & > p:nth-child(1) {
+          & > i {
+            width: 0.2rem;
+          }
+        }
+        & > p:nth-child(2) {
+          font-size: 0.12rem;
+          color: #928f8f;
+          height: 0.2rem;
+          line-height: 0.2rem;
+          margin-left: 0.2rem;
+        }
+      }
+    }
+  }
+
   .address-detail-wrap {
     background-color: #fff;
     height: 0.8rem;
@@ -360,35 +459,6 @@ export default {
     }
   }
 
-  #tipOutput {
-    height: 100vh;
-    position: absolute;
-    top: 0.5rem;
-    padding: 0.1rem 3%;
-    width: 94%;
-    .tip-wrap {
-      border-bottom: 0.01rem solid #eae4e4;
-      padding: 0.1rem 0;
-      width: 100%;
-      height: 0.4rem;
-
-      & > p {
-        overflow: hidden;
-      }
-      & > p:nth-child(1) {
-        & > i {
-          width: 0.2rem;
-        }
-      }
-      & > p:nth-child(2) {
-        font-size: 0.12rem;
-        color: #928f8f;
-        height: 0.2rem;
-        line-height: 0.2rem;
-        margin-left: 0.2rem;
-      }
-    }
-  }
   #citySelecterWrap {
     position: absolute;
     top: 0.5rem;

@@ -1,8 +1,11 @@
 <template>
   <div id="orderList">
-    <div class="order-list-header">
-      <i class="el-icon-arrow-left" @click="goBackToHome"></i>
-      <p>我的订单</p>
+    <TopBar :title="'我的订单'" @goBack="goBackToHome" ></TopBar>
+    <div class="order-list-condition">
+      <el-radio-group v-model="charterRadio" size="mini" @change="charterRadioChange">
+        <el-radio-button label="passenger">乘客</el-radio-button>
+        <el-radio-button label="driver">车主</el-radio-button>
+      </el-radio-group>
     </div>
     <div class="order-list-wrap">
       <van-pull-refresh v-model="isLoading" @refresh="onRefresh">
@@ -10,9 +13,12 @@
           class="order-list-item"
           v-for="item in orderList"
           :key="item.id"
-          @click="checkOrderDetail(item)"
+          @click="checkOrder(item)"
         >
-          <p class="order-list-item-time">{{item.goOffTime}}</p>
+          <p class="order-list-item-time">
+            {{item.goOffTime}}
+            <span>{{item.passengerNum}}人</span>
+          </p>
           <p>
             <span class="pointer start-pointer"></span>
             {{item.newOriginName}}
@@ -27,6 +33,7 @@
             :class="{active:item.orderStatus===1||item.orderStatus===2}"
           >{{item.orderStatus | orderStatusFilter}}</p>
         </div>
+        <el-divider v-if="orderList.length === 0">暂无订单</el-divider>
       </van-pull-refresh>
     </div>
   </div>
@@ -35,6 +42,7 @@
 import utils from "@/utils";
 import Vue from "vue";
 import { PullRefresh, Toast } from "vant";
+import TopBar from "@/components/TopBar";
 Vue.use(PullRefresh);
 Vue.use(Toast);
 
@@ -43,14 +51,13 @@ export default {
     return {
       orderList: [],
       isLoading: false,
-      count: 0,
-      character: ""
+      character: "",
+      charterRadio: "passenger"
     };
   },
   created() {
     this.getMyOrderList();
   },
-
   filters: {
     orderStatusFilter(val) {
       switch (val) {
@@ -72,11 +79,15 @@ export default {
       }
     }
   },
+  components: {
+    TopBar
+  },
   methods: {
     getMyOrderList() {
       this.orderList = [];
       //获取我的订单
-      this.character = localStorage.getItem("character");
+      this.character = this.$storage.get("character");
+      this.charterRadio = this.character;
       const params = {
         type: this.character,
         page: 0
@@ -102,7 +113,11 @@ export default {
               this.$dayjs(item.goOffTime).format("YYYY-MM-DD HH:mm")
             );
 
-            this.$set(item, "newOriginName", utils.addSuffix(item.originName, 18));
+            this.$set(
+              item,
+              "newOriginName",
+              utils.addSuffix(item.originName, 18)
+            );
             this.$set(
               item,
               "newDestinationName",
@@ -111,22 +126,24 @@ export default {
           });
         })
         .catch(err => {
-          Toast(err.message || "获取订单列表失败");
+          Toast(err.data.message || "获取订单列表失败");
         });
     },
 
-    checkOrderDetail(orderDetail) {      
+    checkOrder(val) {
+      console.log("orderDetail", val);
+
       //查看订单详情
-      this.$set(orderDetail,'isFromOrderList', true);
-      switch (orderDetail.orderStatus) {
+      this.$set(val, "isFromOrderList", true);
+      switch (val.orderStatus) {
         case 0:
           Toast("订单已取消");
           break;
         case 1:
-          localStorage.setItem('orderDetail',JSON.stringify(orderDetail))
+          this.$storage.set("orderDetail", val);
           this.$router.push({
-            name:'matchOrderList'
-          })
+            name: "matchOrderList"
+          });
           break;
         case 2:
           break;
@@ -148,44 +165,30 @@ export default {
     onRefresh() {
       //下拉刷新
       setTimeout(() => {
-        Toast("刷新成功");
         this.isLoading = false;
-        this.count++;
+        this.getMyOrderList();
       }, 500);
+    },
+    charterRadioChange(val) {
+      console.log("val", val);
+      this.character = this.$storage.set("character", val);
+      this.character = val;
+      this.getMyOrderList();
     }
   }
 };
 </script>
 <style lang="scss" scoped>
-$order-list-header-height: 0.4rem;
 #orderList {
   background-color: #e8e8e8;
   height: 100vh;
-  .order-list-header {
-    position: fixed;
-    top: 0;
-    width: 100%;
-    background-color: #ffffff;
-    height: $order-list-header-height;
-    line-height: $order-list-header-height;
-    z-index: 1;
-    box-shadow: 0 0 0.05rem #d8d0d0;
-
-    & > i {
-      height: $order-list-header-height;
-      line-height: $order-list-header-height;
-      position: absolute;
-      left: 0.1rem;
-    }
-    & > p {
-      text-align: center;
-      height: $order-list-header-height;
-      line-height: $order-list-header-height;
-    }
-  }
+ 
   .order-list-wrap {
     position: relative;
-    top: 0.5rem;
+    top: 0.8rem;
+    background-color: #e8e8e8;
+    height: calc(100vh - 0.8rem);
+    overflow-y: scroll;
     .order-list-item {
       width: 3.2rem;
       position: relative;
@@ -199,6 +202,9 @@ $order-list-header-height: 0.4rem;
       .order-list-item-time {
         margin-bottom: 0.06rem;
         color: #807d7d;
+        & > span {
+          float: right;
+        }
       }
       .order-list-item-status {
         padding: 0.1rem 0;
@@ -230,6 +236,27 @@ $order-list-header-height: 0.4rem;
     }
   }
   .van-pull-refresh {
+    background-color: #e8e8e8;
+    height: calc(100vh - 0.8rem);
+    overflow-y: scroll;
+  }
+  .order-list-condition {
+    position: fixed;
+    top: 0.4rem;
+    z-index: 1;
+    width: 100%;
+    height: 0.4rem;
+    line-height: 0.4rem;
+    background-color: #fff;
+
+    .el-radio-group {
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+  }
+  .el-divider__text {
     background-color: #e8e8e8;
   }
 }

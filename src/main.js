@@ -11,6 +11,9 @@ import 'vant/lib/index.css';
 // 引入dayjs
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
+import './model/storage'
+import '@/icons' // icon
+import '@vant/touch-emulator';
 
 
 Vue.config.productionTip = false
@@ -21,6 +24,7 @@ dayjs.locale('zh-cn')
 
 Vue.use(ElementUI);
 Vue.use(animated)
+
 
 router.beforeEach((to, from, next) => {
   if (to.meta.title) {

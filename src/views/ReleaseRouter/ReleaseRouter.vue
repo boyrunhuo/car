@@ -1,9 +1,6 @@
 <template>
   <div id="releaseRouter">
-    <div class="release-router-header">
-      <i class="el-icon-arrow-left" @click="backToHome"></i>
-      <p>发布行程</p>
-    </div>
+    <TopBar :title="'发布行程'" @goBack="backToHome"></TopBar>
     <div class="router-info-wrap">
       <div class="start-pointer" @click="inputAddress($event,'startPointer')">
         <div>
@@ -72,13 +69,21 @@
       </div>
       <el-button type="primary" class="submit-Btn" @click="handleMemberPickerConfirm">确定</el-button>
     </van-popup>
+    <van-popup v-model="isDetourMilesVisual" v-if="character === 'driver'" position="bottom">
+      <p class="detourMiles-title">
+        <b>允许绕路公里数</b>
+        <i class="el-icon-close" @click="handleMilesPickerCancel"></i>
+      </p>
+
+      <el-button type="primary" class="submit-Btn" @click="handleTimePickerConfirm">确定</el-button>
+    </van-popup>
     <el-button
       :type="submitBtnType"
       class="submit-Btn"
       style="position: absolute;bottom: .1rem;"
       :disabled="submitBtnDisabled"
       @click="submitOrder"
-    >预约顺风车</el-button>
+    >{{submitBtnText}}</el-button>
   </div>
 </template>
 <script>
@@ -86,6 +91,8 @@
 import Vue from "vue";
 import { DatetimePicker, Popup, Toast } from "vant";
 import utils from "@/utils";
+import TopBar from "@/components/TopBar";
+
 Vue.use(DatetimePicker);
 Vue.use(Popup);
 
@@ -94,20 +101,24 @@ export default {
     return {
       selectedStartAddressInfo: {},
       selectedEndAddressInfo: {},
+      character: "",
       startPointer: "",
       endPointer: "",
       departTime: null, //出发时间
       departTimeLabel: null, //出发时间显示
-      departMember: null, //出发人数
+      departMember: null, //出发人数,
+      detourMiles: 3, //允许绕路公里数
       isTimePickerVisual: false,
       isMemberPickerVisual: false,
+      isDetourMilesVisual: false,
       currentDate: new Date(),
       currentTimeList: [],
       minDate: new Date(new Date().getTime() + 3600 * 1000 * 0.5),
       maxDate: new Date(new Date().getTime() + 3600 * 1000 * 24 * 30),
       isSelectedMemberIndex: 1,
       submitBtnDisabled: true,
-      submitBtnType: "info"
+      submitBtnType: "info",
+      submitBtnText: "预约顺风车"
     };
   },
 
@@ -157,6 +168,9 @@ export default {
       }
     }
   },
+  components: {
+    TopBar
+  },
   methods: {
     backToHome() {
       this.$router.push({
@@ -165,18 +179,19 @@ export default {
     },
     initData() {
       //初始化数据
+      this.character = this.$storage.get("character");
+      this.submitBtnText =
+        this.character === "passenger" ? "预约顺风车" : "发起行程等待乘客";
       //初始化起点
-      this.selectedStartAddressInfo = JSON.parse(
-        localStorage.getItem("selectedStartAddressInfo")
+      this.selectedStartAddressInfo = this.$storage.get(
+        "selectedStartAddressInfo"
       );
       this.startPointer = utils.addSuffix(
         this.selectedStartAddressInfo.formattedAddress,
         16
       );
       //初始化终点
-      this.selectedEndAddressInfo = JSON.parse(
-        localStorage.getItem("selectedEndAddressInfo")
-      );
+      this.selectedEndAddressInfo = this.$storage.get("selectedEndAddressInfo");
       this.endPointer = utils.addSuffix(
         this.selectedEndAddressInfo.formattedAddress,
         16
@@ -185,7 +200,7 @@ export default {
       this.isTimePickerVisual = true;
     },
     inputAddress(e, type) {
-      localStorage.setItem("pointType", type);
+      this.$storage.set("pointType", type);
       this.$router.push({
         name: "map"
       });
@@ -232,6 +247,10 @@ export default {
       //人数选择面板取消按钮
       this.isMemberPickerVisual = false;
     },
+    handleMilesPickerCancel() {
+      //允许绕路公里数选择面板
+      this.isDetourMilesVisual = false;
+    },
     selectMember(member) {
       //点选人数
       this.isSelectedMemberIndex = member;
@@ -263,14 +282,7 @@ export default {
           this.currentTimeList[1] = month;
           return month;
         case "day":
-          day;
-          // if (value == this.$dayjs().$D) {
-          //   day = "今天";
-          // } else if (value == this.$dayjs().$D + 1) {
-          //   day = "明天";
-          // } else {
           day = `${value}日`;
-          // }
           this.currentTimeList[2] = day;
           return day;
         case "hour":
@@ -291,7 +303,7 @@ export default {
     },
     submitOrder() {
       //提交订单，预约顺风车
-      let goOffTime = this.$dayjs(this.departTime);      
+      let goOffTime = this.$dayjs(this.departTime);
       let params = {
         goOffTime: this.$dayjs(this.departTime).valueOf(),
         origin: this.selectedStartAddressInfo.lnglat.join(),
@@ -301,35 +313,35 @@ export default {
         passengerNum: this.departMember.replace("人", ""),
         remark: "无"
       };
-      if (localStorage.getItem("character") === "passenger") {
+      if (this.character === "passenger") {
         //乘客发起订单
 
         this.$http
           .post(`/order/create_passenger_order`, params)
           .then(res => {
-            localStorage.setItem("orderDetail", JSON.stringify(res.data));
+            this.$storage.set("orderDetail", res.data);
 
             this.$router.push({
               name: "matchOrderList"
             });
           })
           .catch(err => {
-            Toast(err.message || "创建订单失败!");
+            Toast(err.data.message || "创建订单失败!");
           });
-      } else if (localStorage.getItem("character") === "driver") {
+      } else if (this.character === "driver") {
         //车主发起订单,增加一个绕路公里数
-        params.detourMiles = 3;
+        params.detourMiles = this.detourMiles;
         this.$http
           .post(`/order/create_driver_order`, params)
           .then(res => {
-            localStorage.setItem("orderDetail", JSON.stringify(res.data));
+            this.$storage.set("orderDetail", res.data);
 
             this.$router.push({
               name: "matchOrderList"
             });
           })
           .catch(err => {
-            Toast(err.message || "创建订单失败!");
+            Toast(err.data.message || "创建订单失败!");
           });
       }
     }
@@ -337,29 +349,11 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
-$release-router-header-height: 0.4rem;
 $split-line: 0.01rem solid #e4e4e4;
 #releaseRouter {
   background-color: #e8e8e8;
   height: 100vh;
-  .release-router-header {
-    height: $release-router-header-height;
-    line-height: $release-router-header-height;
-    background-color: #fff;
 
-    & > p {
-      height: $release-router-header-height;
-      line-height: $release-router-header-height;
-      text-align: center;
-    }
-    & > i {
-      height: $release-router-header-height;
-      line-height: $release-router-header-height;
-
-      position: absolute;
-      left: 0.1rem;
-    }
-  }
   .router-info-wrap {
     width: 3.2rem;
     position: relative;
@@ -368,7 +362,7 @@ $split-line: 0.01rem solid #e4e4e4;
     box-shadow: 0 0 0.04rem #bfb4b4;
     padding: 0.1rem;
     background-color: #fff;
-    top: 0.2rem;
+    top: 0.5rem;
     border-radius: 0.05rem;
     .start-pointer,
     .end-pointer {

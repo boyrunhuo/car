@@ -41,6 +41,7 @@
 <script>
 import utils from "@/utils";
 
+
 export default {
   props: {
     startPointerInfo: {
@@ -57,7 +58,8 @@ export default {
       isShowAddressForm: true,
       isShowDriverAuth: false,
       enterClass: "",
-      driverAuth: false //是否通过车主验证
+      character: '',
+      driverAuth: true //是否通过车主验证
     };
   },
   created() {
@@ -66,6 +68,11 @@ export default {
   mounted() {
     utils.scroll("startPointerAddressName");
     utils.scroll("endPointerAddressName");
+  },
+  watch: {
+    'character'(){
+      this.$emit("characterChange")
+    }
   },
   computed: {
     startPointerAddressName() {
@@ -90,7 +97,8 @@ export default {
   methods: {
     selectCharacter(character) {
       //用户类型选择，乘客或车主，如果是车主，需要通过车主验证
-      localStorage.setItem("character", character);
+      this.$storage.set("character", character);
+      this.character = character;
       if (character === "passenger") {
         this.animationSwitch("faster fadeInLeft");
         this.isPassenger = true;
@@ -123,17 +131,17 @@ export default {
     },
     checkAddress(e, type) {
       //输入地址
-      localStorage.setItem("pointType", type);
+      this.$storage.set("pointType", type);
       this.$router.push({
         name: "map"
       });
     },
     judgeCharacter() {
       //判断用户类型
-      if (localStorage.getItem("character")) {
-        if (localStorage.getItem("character") === "passenger") {
+      if (this.$storage.get("character")) {
+        if (this.$storage.get("character") === "passenger") {
           this.isPassenger = true;
-        } else if (localStorage.getItem("character") === "driver") {
+        } else if (this.$storage.get("character") === "driver") {
           this.isPassenger = false;
         }
       }

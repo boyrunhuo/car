@@ -3,10 +3,15 @@
     <div id="GDMap" v-show="false"></div>
     <Header></Header>
     <div class="address-panel-wrap">
-      <AddressPanel :startPointerInfo="startPointerInfo" :endPointerInfo="endPointerInfo"></AddressPanel>
+      <AddressPanel 
+        :startPointerInfo="startPointerInfo" 
+        :endPointerInfo="endPointerInfo" 
+        @characterChange="characterChange"
+      >
+      </AddressPanel>
     </div>
     <div class="order-list-wrap">
-      <handleOrder></handleOrder>
+      <handleOrder ref="handleOrderRef"></handleOrder>
     </div>
     <div class="common-route-wrap">
       <CommonRoute></CommonRoute>
@@ -23,6 +28,8 @@ import mapMixin from "@/mixin/mapMixin";
 import handleOrder from "./handleOrder";
 import Vue from "vue"
 import { Toast } from "vant";
+
+
 Vue.use(Toast);
 
 export default {
@@ -35,9 +42,10 @@ export default {
   mixins: [mapMixin],
 
   mounted() {
+    
     //清空到达地点信息
-    localStorage.setItem("selectedEndAddressInfo", "");
-    if (!localStorage.getItem("selectedStartAddressInfo")) {
+    this.$storage.set("selectedEndAddressInfo", "");
+    if (!this.$storage.get("selectedStartAddressInfo")) {
       //如果有来自用户输入的位置信息，就不使用自动定位
       this.initLocalStorage();
     } else {
@@ -58,14 +66,14 @@ export default {
       let lnglat = [data.position.lng, data.position.lat];
       let currentCity = data.addressComponent.city;
       if (currentCity) {
-        localStorage.setItem("currentCity", currentCity);
+        this.$storage.set("currentCity", currentCity);
       }
       this.regeoCode(lnglat)
         .then(res => {
           //根据起点还是终点将位置信息存储到对应的localStorage里
           let obj = Object.assign({}, res.regeocode);
           obj.lnglat = lnglat;
-          localStorage.setItem("selectedStartAddressInfo", JSON.stringify(obj));
+          this.$storage.set("selectedStartAddressInfo", obj);
           this.getLocationFormLocalStorage();
         })
         .catch(() => {});
@@ -77,11 +85,13 @@ export default {
     },
     getLocationFormLocalStorage() {
       //如果localStorage里有相应的位置信息，将数据传送给AddressPanel组件
-      if (localStorage.getItem("selectedStartAddressInfo")) {
-        this.startPointerInfo = JSON.parse(
-          localStorage.getItem("selectedStartAddressInfo")
-        );
+      if (this.$storage.get("selectedStartAddressInfo")) {
+        this.startPointerInfo = this.$storage.get("selectedStartAddressInfo")
       }
+    },
+    characterChange() {
+      //角色修改      
+      this.$refs['handleOrderRef'].getHandleOrder()
     }
   },
   components: {

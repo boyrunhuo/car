@@ -1,19 +1,20 @@
 <template>
   <div id="handleOrder">
-    <p>
-      <b>待处理订单</b>
+    <p v-if="orderList.length > 0">
+      <b>待处理订单({{character | characterFilter}})</b>
     </p>
-    <div class="order-item" v-for="item in orderList" :key="item.id">
+    <div class="order-item" v-for="item in orderList" :key="item.id" @click="checkOrder(item)">
       <p class="order-item-msg">
         <span>{{item.orderStatus | orderStatusFilter}}</span>
         <span>{{item.goOffTime}}</span>
+        <span>{{item.passengerNum}}人</span>
       </p>
       <p class="order-item-time">
         <span class="pointer start-pointer"></span>
-        <span class="pointer-address">{{item.originName}}</span>
+        <span class="pointer-address">{{item.newOriginName}}</span>
         <i class="el-icon-right"></i>
         <span class="pointer end-pointer"></span>
-        <span class="pointer-address">{{item.destinationName}}</span>
+        <span class="pointer-address">{{item.newDestinationName}}</span>
       </p>
     </div>
   </div>
@@ -21,40 +22,56 @@
 <script>
 import utils from "@/utils";
 
+
+let that;
+
 export default {
   data() {
     return {
-      orderList: []
+      orderList: [],
+      character: "passenger"
     };
   },
+  beforeCreate() {
+    //在vue创建前的生命周期钩子函数中将that指向this，可以在filter中通过that访问vue实例了
+    that = this;
+  },
   created() {
-    this.getHandleOrder()
+    this.getHandleOrder();
   },
   filters: {
     orderStatusFilter(val) {
       switch (val) {
         case 0:
           return "已取消";
-          break;
         case 1:
-          return "待接单";
-          break;
+          if (that.character === "passenger") {
+            return "待司机接单";
+          } else if (that.character === "driver") {
+            return "寻找乘客中";
+          }
         case 2:
           return "待出行";
-          break;
         case 3:
           return "行程进行中";
-          break;
         case 4:
           return "已完成";
-          break;
+      }
+    },
+    characterFilter(val) {
+      switch (val) {
+        case "passenger":
+          return "乘客";
+        case "driver":
+          return "车主";
       }
     }
   },
   methods: {
     getHandleOrder() {
+      this.character = this.$storage.get("character");
       const params = {
-        type: "driver",
+        type: this.character,
         page: 0
         // status: 1
       };
@@ -70,20 +87,55 @@ export default {
           }
         })
         .then(res => {
-          this.orderList = res.data.orderList
-          this.orderList = this.orderList.filter((item) => {
-            return item.orderStatus == 1 || item.orderStatus == 2
-          })
-          
+          this.orderList = res.data.orderList;
+          this.orderList = this.orderList.filter(item => {
+            return item.orderStatus == 1 || item.orderStatus == 2;
+          });
+
           this.orderList.forEach(item => {
             this.$set(
               item,
               "goOffTime",
               this.$dayjs(item.goOffTime).format("YYYY-MM-DD HH:mm")
             );
+            this.$set(
+              item,
+              "newOriginName",
+              utils.addSuffix(item.originName, 6)
+            );
+            this.$set(
+              item,
+              "newDestinationName",
+              utils.addSuffix(item.destinationName, 6)
+            );
           });
         })
         .catch(err => {});
+    },
+    checkOrder(val) {
+      //查看订单详情
+      this.$set(val, "isFromOrderList", false);
+      console.log("orderDetail", val);
+      switch (val.orderStatus) {
+        case 0:
+          Toast("订单已取消");
+          break;
+        case 1:
+          this.$storage.set("orderDetail", val);
+          this.$router.push({
+            name: "matchOrderList"
+          });
+          break;
+        case 2:
+          break;
+        case 3:
+          break;
+        case 4:
+          break;
+        default:
+          Toast("非法订单");
+          break;
+      }
     }
   }
 };
@@ -100,6 +152,9 @@ export default {
       & > span:nth-child(1) {
         color: #2196f3;
         margin-right: 0.1rem;
+      }
+      & > span:nth-child(3) {
+        float: right;
       }
     }
     .order-item-time {
@@ -122,7 +177,7 @@ export default {
         height: 0.24rem;
         line-height: 0.24rem;
         overflow: hidden;
-        text-overflow: ellipsis;
+        // text-overflow: ellipsis;
         white-space: nowrap;
         vertical-align: middle;
       }

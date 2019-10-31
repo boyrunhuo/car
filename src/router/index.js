@@ -60,6 +60,23 @@ export const constantRouterMap = [
             title: '个人中心'
         }
         
+    },
+    {
+        path: '/commonRoute',
+        name: 'commonRoute',
+        component:() => import('@/views/CommonRoute/index'),
+        children: [
+            {
+                path: '/commonRoute/addCommonRoute',
+                name:'addCommonRoute',
+                component: () => import('@/views/CommonRoute/AddCommonRoute')
+            },
+            {
+                path: '/commonRoute/mangeCommonRoute',
+                name:'mangeCommonRoute',
+                component: () => import('@/views/CommonRoute/MangeCommonRoute')
+            }
+        ]
     }
 
 ]

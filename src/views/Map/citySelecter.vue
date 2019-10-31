@@ -21,6 +21,8 @@
   </div>
 </template>
 <script>
+
+
 export default {
   data() {
     return {
@@ -36,7 +38,7 @@ export default {
   methods: {
     initCity() {
       //初始化城市
-      let currentCity = localStorage.getItem("currentCity");
+      let currentCity = this.$storage.get("currentCity");
       this.city = currentCity ? currentCity : "";
     },
     initCityList() {

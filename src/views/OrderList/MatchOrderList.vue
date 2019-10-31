@@ -13,6 +13,10 @@
         <span class="pointer end-pointer"></span>
         <span class="pointer-address" id="destinationName">{{orderDetail.destinationName}}</span>
       </p>
+      <p class="order-item-time">
+        <span>{{orderDetail.goOffTime}}</span>
+        <span>{{orderDetail.passengerNum}}人</span>
+      </p>
     </div>
     <div class="order-list-wrap">
       <van-pull-refresh v-model="isLoading" @refresh="onRefresh">
@@ -22,14 +26,17 @@
           :key="item.id"
           @click="checkOrderDetail(item)"
         >
-          <p class="order-list-item-time">{{item.goOffTime}}</p>
+          <p class="order-list-item-time">
+            {{item.goOffTime}}
+            <span>{{item.passengerNum || item.seatStatus}}人</span>
+          </p>
           <p>
             <span class="pointer start-pointer"></span>
-            {{item.originName}}
+            {{item.newOriginName}}
           </p>
           <p>
             <span class="pointer end-pointer"></span>
-            {{item.destinationName}}
+            {{item.newDestinationName}}
           </p>
           <p class="order-list-item-status">
             <span>{{item.name}}</span>
@@ -37,8 +44,14 @@
               <img src="@/assets/img/mars.png" />
               {{item.marsId}}
             </span>
+            <el-button
+              type="primary"
+              size="mini"
+              @click.stop="joinOrder(item)"
+            >{{character === 'passenger' ? '请他接我' : '接单'}}</el-button>
           </p>
         </div>
+        <el-divider v-if="orderList.length === 0">暂无匹配订单</el-divider>
       </van-pull-refresh>
     </div>
   </div>
@@ -46,9 +59,12 @@
 <script>
 import utils from "@/utils";
 import Vue from "vue";
-import { PullRefresh, Toast } from "vant";
+import { PullRefresh, Toast, Dialog } from "vant";
+
+
 Vue.use(PullRefresh);
 Vue.use(Toast);
+Vue.use(Dialog);
 
 export default {
   data() {
@@ -65,7 +81,7 @@ export default {
     this.initData();
   },
   beforeRouteLeave(to, from, next) {
-    localStorage.removeItem("orderDetail");
+    this.$storage.remove("orderDetail");
     next();
   },
   mounted() {
@@ -75,8 +91,8 @@ export default {
   },
   methods: {
     initData() {
-      this.character = localStorage.getItem("character");
-      this.orderDetail = JSON.parse(localStorage.getItem("orderDetail"));
+      this.character = this.$storage.get("character");
+      this.orderDetail = this.$storage.get("orderDetail");
       this.orderId = this.orderDetail.orderId || this.orderDetail.id;
       this.orderNo = this.orderDetail.orderNo;
       if (!this.orderDetail.goOffTime) {
@@ -105,7 +121,7 @@ export default {
             "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
           }
         })
-        .then(res => {          
+        .then(res => {
           if (res.data) {
             this.orderList = res.data.orderList;
             this.orderList.forEach(item => {
@@ -116,21 +132,21 @@ export default {
               );
               this.$set(
                 item,
-                "originName",
+                "newOriginName",
                 utils.addSuffix(item.originName, 18)
               );
               this.$set(
                 item,
-                "destinationName",
+                "newDestinationName",
                 utils.addSuffix(item.destinationName, 18)
               );
             });
-          } else if (res.message) {
-            Toast(res.message);
+          } else if (res.data.message) {
+            Toast(res.data.message);
           }
         })
         .catch(err => {
-          Toast(err.message || "获取订单列表失败");
+          Toast(err.data.message || "获取订单列表失败");
         });
     },
     getOrderByID() {
@@ -145,41 +161,75 @@ export default {
       }
       this.$http.post(`/order/get_order_by_id`, formData).then(res => {
         this.orderDetail = res.data.order;
-        this.orderDetail.originName = utils.addSuffix(
-          this.orderDetail.originName,
-          10
-        );
-        this.orderDetail.destinationName = utils.addSuffix(
-          this.orderDetail.destinationName,
-          10
-        );
+        this.orderDetail.goOffTime = this.$storage.get("orderDetail")
+          ? this.orderDetail.goOffTime
+          : this.$dayjs(this.orderDetail.goOffTime).format("YYYY-MM-DD HH:mm");
 
-        localStorage.setItem("orderDetail", JSON.stringify(res.data.order));
+        this.$storage.set("orderDetail", res.data.order);
       });
     },
-    cancelOrder() {
-      //取消订单
-      console.log( this.orderId,this.character);
+    checkOrderDetail(val) {
+      console.log("orderDetail", val);
+    },
+    joinOrder(val) {
+      //加入订单
+      console.log("val", val, this.orderDetail.id);
+
       const params = {
-        type: this.character,
-        orderId: this.orderId
+        driverOrderId:
+          this.character === "passenger" ? val.id : this.orderDetail.id,
+        passengerOrderId:
+          this.character === "passenger" ? this.orderDetail.id : val.id
       };
       let formData = new FormData();
       for (let item in params) {
         formData.append(item, params[item]);
       }
-      this.$http.post(`/order/cancel_order`,formData).then(res => {
-        
-      }).catch({
-        
+      this.$http
+        .post(`/order/order_join`, formData)
+        .then(res => {})
+        .catch(err => {});
+    },
+    cancelOrder() {
+      //取消订单
+      Dialog.confirm({
+        title: "取消订单",
+        message: "确定要取消该订单吗？"
       })
+        .then(response => {
+          console.log('response',response);
+          
+          const params = {
+            type: this.character,
+            orderId: this.orderId
+          };
+          let formData = new FormData();
+          for (let item in params) {
+            formData.append(item, params[item]);
+          }
+          this.$http
+            .post(`/order/cancel_order`, formData)
+            .then(res => {
+              Toast(res.data.message || '取消订单成功')
+              this.$router.push({
+                name:'home',
+              })
+            })
+            .catch(err => {
+              Toast(err.data.message || '取消订单失败')
+              
+            });
+        })
+        .catch(error => {
+          
+        });
+      //取消订单
     },
     onRefresh() {
       //下拉刷新
       setTimeout(() => {
-        Toast("刷新成功");
+        this.initData();
         this.isLoading = false;
-        this.count++;
       }, 500);
     },
     goBack() {
@@ -203,8 +253,8 @@ $order-list-header-height: 0.4rem;
     top: 0;
     width: 100%;
     background-color: #ffffff;
-    height: $order-list-header-height * 2;
-    line-height: $order-list-header-height * 2;
+    height: $order-list-header-height * 3;
+    line-height: $order-list-header-height * 3;
     z-index: 1;
     box-shadow: 0 0 0.05rem #d8d0d0;
     .order-item-address {
@@ -233,6 +283,11 @@ $order-list-header-height: 0.4rem;
         vertical-align: middle;
       }
     }
+    .order-item-time {
+      display: flex;
+      justify-content: space-around;
+      font-size: 0.14rem;
+    }
     & > i {
       height: $order-list-header-height;
       line-height: $order-list-header-height;
@@ -253,7 +308,9 @@ $order-list-header-height: 0.4rem;
   }
   .order-list-wrap {
     position: relative;
-    top: 1rem;
+    top: 1.2rem;
+    height: calc(100vh - 1.2rem);
+    overflow-y: scroll;
     .order-list-item {
       width: 3.2rem;
       position: relative;
@@ -267,6 +324,9 @@ $order-list-header-height: 0.4rem;
       .order-list-item-time {
         margin-bottom: 0.06rem;
         color: #807d7d;
+        & > span {
+          float: right;
+        }
       }
       .order-list-item-status {
         padding: 0.1rem 0;
@@ -298,6 +358,14 @@ $order-list-header-height: 0.4rem;
     }
   }
   .van-pull-refresh {
+    background-color: #e8e8e8;
+    height: calc(100vh - 1.2rem);
+    overflow-y: scroll;
+  }
+  .el-button--mini {
+    float: right;
+  }
+  .el-divider__text {
     background-color: #e8e8e8;
   }
 }

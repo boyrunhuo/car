@@ -21,9 +21,16 @@ axios.interceptors.response.use(response => {
     if (response.data.code === 1) {
         return response.data
     } else if (response.data.code === 0) {
-        const error = new Error()
-        error.data = response.data
-        throw error
+        if (response.data.data) {
+            const error = new Error()
+            error.data = response.data
+            throw error
+        } else if (response.data && !response.data.data) {
+            const error = new Error()
+            error.data = response
+            throw error.data
+        }
+
     }
 },
     error => {
