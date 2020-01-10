@@ -23,6 +23,7 @@
           <i class="el-icon-user"></i>
           <el-input disabled="disabled" v-model="departMember" placeholder="出发人数"></el-input>
         </span>
+        <!-- <p>{{detourMiles}}</p> -->
       </div>
     </div>
     <van-popup v-model="isTimePickerVisual" position="bottom">
@@ -42,7 +43,7 @@
         :formatter="timeFormatter"
         :class="[{isShowYear:!isShowYear,isShowMonth:!isShowMonth}]"
       />
-      <el-button type="primary" class="submit-Btn" @click="handleTimePickerConfirm">确定</el-button>
+      <el-button type="primary" class="submit-btn" @click="handleTimePickerConfirm">确定</el-button>
     </van-popup>
     <van-popup v-model="isMemberPickerVisual" position="bottom">
       <p class="member-title">
@@ -67,34 +68,46 @@
           <span>人</span>
         </div>
       </div>
-      <el-button type="primary" class="submit-Btn" @click="handleMemberPickerConfirm">确定</el-button>
+      <el-button type="primary" class="submit-btn" @click="handleMemberPickerConfirm">确定</el-button>
     </van-popup>
-    <van-popup v-model="isDetourMilesVisual" v-if="character === 'driver'" position="bottom">
+    <!-- <van-popup v-model="isDetourMilesVisual" v-if="character === 'driver'" position="bottom">
       <p class="detourMiles-title">
         <b>允许绕路公里数</b>
         <i class="el-icon-close" @click="handleMilesPickerCancel"></i>
       </p>
 
-      <el-button type="primary" class="submit-Btn" @click="handleTimePickerConfirm">确定</el-button>
-    </van-popup>
-    <el-button
-      :type="submitBtnType"
-      class="submit-Btn"
-      style="position: absolute;bottom: .1rem;"
-      :disabled="submitBtnDisabled"
-      @click="submitOrder"
-    >{{submitBtnText}}</el-button>
+      <el-button type="primary" class="submit-btn" @click="handleTimePickerConfirm">确定</el-button>
+    </van-popup> -->
+    <div class="release-router-footer">
+      <div class="release-router-footer-msg">
+        <p class="release-router-footer-money" v-if="distance !== null">{{distance}}km</p>
+        <p class="release-router-footer-money" v-if="moneyCost !== null">
+          价格
+          <span>{{moneyCost}}</span>元
+          <i class="el-icon-arrow-right" @click="checkMoneyRule"></i>
+        </p>
+      </div>
+      <el-button
+        :type="submitBtnType"
+        class="submit-btn"
+        :disabled="submitBtnDisabled"
+        @click="submitOrder"
+      >{{submitBtnText}}</el-button>
+    </div>
   </div>
 </template>
 <script>
 //按需引入Vant UI组件
 import Vue from "vue";
-import { DatetimePicker, Popup, Toast } from "vant";
+import { DatetimePicker, Popup, Toast, Dialog, Picker } from "vant";
 import utils from "@/utils";
 import TopBar from "@/components/TopBar";
 
-Vue.use(DatetimePicker);
-Vue.use(Popup);
+Vue.use(DatetimePicker)
+  .use(Popup)
+  .use(Toast)
+  .use(Dialog)
+  .use(Picker);
 
 export default {
   data() {
@@ -118,7 +131,9 @@ export default {
       isSelectedMemberIndex: 1,
       submitBtnDisabled: true,
       submitBtnType: "info",
-      submitBtnText: "预约顺风车"
+      submitBtnText: "预约顺风车",
+      distance: null, //起终点距离
+      moneyCost: null //订单价格
     };
   },
 
@@ -152,6 +167,10 @@ export default {
   watch: {
     submitBtnDisabled(val) {
       this.submitBtnType = !val ? "primary" : "info";
+      if (!val) {
+        //如果可以发起订单了，给出预估价格
+        this.getMoney();
+      }
     },
     departTimeLabel(val) {
       if (val && this.departMember) {
@@ -259,6 +278,10 @@ export default {
       //选定人数
       this.departMember = this.isSelectedMemberIndex + "人";
       this.isMemberPickerVisual = false;
+      //显示出行时间选择面板
+      if (!this.departTime) {
+        this.isTimePickerVisual = true;
+      }
     },
     timeFilter(type, options) {
       //时间过滤器
@@ -271,7 +294,6 @@ export default {
     timeFormatter(type, value) {
       //格式化时间type：year，month，day，hour，minute
       let year, month, day, hour, minute;
-
       switch (type) {
         case "year":
           year = `${value}年`;
@@ -344,6 +366,41 @@ export default {
             Toast(err.data.message || "创建订单失败!");
           });
       }
+    },
+    getMoney() {
+      //获取预估价格
+      let params = {
+        origin: this.selectedStartAddressInfo.lnglat.join(),
+        destination: this.selectedEndAddressInfo.lnglat.join(),
+        passengerNum: this.departMember.replace("人", "")
+      };
+      let formData = new FormData();
+      for (let item in params) {
+        formData.append(item, params[item]);
+      }
+      this.$http
+        .post(`/order/get_money_cost`, formData, {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+          }
+        })
+        .then(res => {
+          let { moneyCost, distance } = res.data;
+          this.moneyCost = moneyCost;
+          this.distance = distance;
+        })
+        .catch(err => {});
+    },
+    checkMoneyRule() {
+      //获取价格规则
+      this.$http
+        .get(`/order/get_bill_rules`)
+        .then(res => {
+          Dialog.alert({
+            message: res.data.rules
+          }).then(() => {});
+        })
+        .catch(err => {});
     }
   }
 };
@@ -418,7 +475,7 @@ $split-line: 0.01rem solid #e4e4e4;
       }
     }
   }
-  .submit-Btn {
+  .submit-btn {
     width: 3.4rem;
     margin: 0.1rem 0;
     text-align: center;
@@ -458,6 +515,25 @@ $split-line: 0.01rem solid #e4e4e4;
 
       & > span {
         color: #03a9f4;
+      }
+    }
+  }
+  .release-router-footer {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    background-color: #fff;
+    .release-router-footer-msg {
+      .release-router-footer-money {
+        text-align: center;
+        font-size: 0.14rem;
+        color: #928c8c;
+        & > span {
+          font-size: 0.2rem;
+          color: #000;
+        }
       }
     }
   }

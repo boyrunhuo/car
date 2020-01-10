@@ -22,9 +22,9 @@
         <i class="el-icon-info"></i>最多设置5条常用路线
       </p>
     </div>
-    <el-button 
-      id="submitAddBtn" 
-      :type="btnType" 
+    <el-button
+      id="submitAddBtn"
+      :type="btnType"
       :disabled="btnDisabled"
       @click="addCommonRoute"
     >添加常用路线</el-button>
@@ -36,10 +36,8 @@ import Vue from "vue";
 import { Toast, SwipeCell, Button, Dialog } from "vant";
 import utils from "@/utils";
 import routeMixin from "@/mixin/routeMixin";
-Vue.use(Toast);
-Vue.use(SwipeCell);
-Vue.use(Button);
-Vue.use(Dialog);
+Vue.use(Toast).use(SwipeCell).use(Button).use(Dialog);
+
 
 export default {
   data() {
@@ -56,10 +54,15 @@ export default {
   },
   created() {
     this.getCommonRouteList();
+    this.fromRoute = this.getRouteHistory();
   },
+
   methods: {
     goBack() {
-      if (this.fromRoute === 'personalCenter') {
+      if (
+        this.fromRoute === "personalCenter" ||
+        this.fromRoute === "mangeCommonRoute"
+      ) {
         this.$router.push({
           name: "personalCenter"
         });
@@ -97,7 +100,26 @@ export default {
       this.btnType = isBtnDisabled ? "info" : "primary";
       this.btnDisabled = isBtnDisabled ? true : false;
     },
-    editRoute(route) {},
+    editRoute(route) {
+      let commonStartPoint = {
+        formattedAddress: route.originName,
+        lnglat: [route.origin.split(",")[0], route.origin.split(",")[1]]
+      };
+      let commonEndPoint = {
+        formattedAddress: route.destinationName,
+        lnglat: [
+          route.destination.split(",")[0],
+          route.destination.split(",")[1]
+        ]
+      };
+      this.$storage.set("orderId", route.orderId);
+      this.$storage.set("commonStartPoint", commonStartPoint);
+      this.$storage.set("commonEndPoint", commonEndPoint);
+      this.setRouteHistory();
+      this.$router.push({
+        name: "addCommonRoute"
+      });
+    },
     deleteRoute(route) {
       Dialog.confirm({
         title: "取消订单",
@@ -120,8 +142,6 @@ export default {
             })
             .then(res => {
               this.getCommonRouteList();
-              console.log("res", res, res.data);
-
               Toast(res.data.message || "删除常用路线成功");
             })
             .catch(err => {
@@ -132,10 +152,10 @@ export default {
         .catch(error => {});
     },
     addCommonRoute() {
-      this.setRouteHistory()
+      this.setRouteHistory();
       this.$router.push({
         name: "addCommonRoute"
-      })
+      });
     }
   }
 };

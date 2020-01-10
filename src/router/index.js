@@ -77,6 +77,11 @@ export const constantRouterMap = [
                 component: () => import('@/views/CommonRoute/MangeCommonRoute')
             }
         ]
+    },
+    {
+        path: '/bill',
+        name: 'bill',
+        component: () => import('@/views/Bill/Bill')
     }
 
 ]

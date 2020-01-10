@@ -22,8 +22,7 @@ Vue.prototype.$dayjs = dayjs
 
 dayjs.locale('zh-cn')
 
-Vue.use(ElementUI);
-Vue.use(animated)
+Vue.use(ElementUI).use(animated);
 
 
 router.beforeEach((to, from, next) => {

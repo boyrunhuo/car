@@ -1,7 +1,11 @@
 // const httpTartget = 'http://10.32.16.122:8080' //熊大本地
-const httpTartget = 'http://10.32.64.129:13288'//外测
+// const httpTartget = 'http://10.32.64.129:13288'//外测
+const httpTartget = 'http://10.32.64.216:13288'//正式
 const path = require('path')
+// const Cookie = 'Carride-Access-Token=cPMJbGHnj7kz;'//熊大
+const Cookie = 'Carride-Access-Token=SYsfMnRiEEWM;'//赵堃圻
 module.exports = {
+
     configureWebpack: {
         externals: {
             //高德地图
@@ -35,7 +39,7 @@ module.exports = {
                 changeOrigin: true,
                 //暂时自带登录token，之后对接登录接口了删除
                 headers: {
-                    'Carride-Access-Token': '1234567'
+                    'Cookie': Cookie
                 }
             },
             '/user/': {
@@ -43,7 +47,15 @@ module.exports = {
                 changeOrigin: true,
                 //暂时自带登录token，之后对接登录接口了删除
                 headers: {
-                    'Carride-Access-Token': '1234567'
+                    'Cookie': Cookie
+                }
+            },
+            '/account': {
+                target: httpTartget,
+                changeOrigin: true,
+                //暂时自带登录token，之后对接登录接口了删除
+                headers: {
+                    'Cookie': Cookie
                 }
             }
         }

@@ -19,7 +19,11 @@ axios.interceptors.response.use(response => {
 
     NProgress.done()
     if (response.data.code === 1) {
-        return response.data
+        if (response.data.data) {
+            return response.data
+        } else if (response.data && !response.data.data) {
+            return response
+        }
     } else if (response.data.code === 0) {
         if (response.data.data) {
             const error = new Error()

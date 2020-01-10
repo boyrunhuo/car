@@ -10,18 +10,25 @@
       </span>
     </div>
     <div class="common-route-list">
-      <p v-if="commonRouteList.length === 0">添加常用路线可快速约车</p>
+      <p v-if="commonRouteList.length === 0" @click="goToAdd">添加常用路线可快速约车</p>
       <ul>
-        <li v-for="route in commonRouteList" :key="route.orderId" class="route-item">
-          <span class="route-name">{{route.originName}}</span>
+        <li
+          v-for="route in commonRouteList"
+          :key="route.orderId"
+          class="route-item"
+          @click="sendOrder(route)"
+        >
+          <span class="route-name" id="originName">{{route.newOriginName}}</span>
           <svg-icon icon-class="arrowRight" />
-          <span class="route-name">{{route.destinationName}}</span>
+          <span class="route-name" id="destinationName">{{route.newDestinationName}}</span>
         </li>
       </ul>
     </div>
   </div>
 </template>
 <script>
+import utils from "@/utils";
+
 export default {
   data() {
     return {
@@ -46,9 +53,42 @@ export default {
       this.$http
         .get(`/order/get_regular_order`)
         .then(res => {
-          this.commonRouteList = res.data.orderList;
+          if (res.data.orderList) {
+            this.commonRouteList = res.data.orderList;
+            this.commonRouteList.map(item => {
+              this.$set(
+                item,
+                "newOriginName",
+                utils.addSuffix(item.originName, 8)
+              );
+              this.$set(
+                item,
+                "newDestinationName",
+                utils.addSuffix(item.destinationName, 8)
+              );
+            });
+          }
         })
         .catch(err => {});
+    },
+    sendOrder(route) {
+      console.log("route", route);
+      let selectedStartAddressInfo = {
+        formattedAddress: route.originName,
+        lnglat: [route.origin.split(",")[0], route.origin.split(",")[1]]
+      };
+      let selectedEndAddressInfo = {
+        formattedAddress: route.destinationName,
+        lnglat: [
+          route.destination.split(",")[0],
+          route.destination.split(",")[1]
+        ]
+      };
+      this.$storage.set("selectedStartAddressInfo", selectedStartAddressInfo);
+      this.$storage.set("selectedEndAddressInfo", selectedEndAddressInfo);
+      this.$router.push({
+        name: "releaseRouter"
+      });
     }
   }
 };

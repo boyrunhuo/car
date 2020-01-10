@@ -1,21 +1,36 @@
 <template>
   <div class="home-header">
-    <div @click="goToOrder">
-      <el-avatar icon="el-icon-user-solid" ></el-avatar>
+    <div>
+      <el-avatar icon="el-icon-user-solid"  @click.native="goToPersonalCenter"></el-avatar>
+      <span class="money-rule" @click="checkMoneyRule">系统计费规则</span>
     </div>
     <!-- <p class="title">益出行</p> -->
   </div>
 </template>
 <script>
+import Vue from "vue";
+import { Dialog } from "vant";
+Vue.use(Dialog);
+
 export default {
   data() {
     return {};
   },
   methods: {
-    goToOrder() {
+    goToPersonalCenter() {
       this.$router.push({
-        name: 'personalCenter'
+        name: "personalCenter"
       });
+    },
+    checkMoneyRule() {
+      this.$http
+        .get(`/order/get_bill_rules`)
+        .then(res => {
+          Dialog.alert({
+            message: res.data.rules
+          }).then(() => {});
+        })
+        .catch(err => {});
     }
   }
 };
@@ -29,6 +44,13 @@ export default {
     position: absolute;
     height: 0.4rem;
     width: 0.4rem;
+  }
+  .money-rule {
+    float: right;
+    font-size: 0.12rem;
+    height: 0.2rem;
+    line-height: 0.2rem;
+    color: #fff;
   }
   .title {
     text-align: center;

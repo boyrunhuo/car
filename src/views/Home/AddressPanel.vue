@@ -26,7 +26,7 @@
               @focus="checkAddress($event,'endPointer')"
             ></el-input>
           </div>
-          <p class="tips">常用目的地 : 添加后可快速输入终点</p>
+          <!-- <p class="tips">常用目的地 : 添加后可快速输入终点</p> -->
         </div>
       </transition>
       <transition :enter-active-class="enterClass">
@@ -59,15 +59,15 @@ export default {
       isShowDriverAuth: false,
       enterClass: "",
       character: '',
-      driverAuth: true //是否通过车主验证
+      driverAuth: false //是否通过车主验证
     };
   },
   created() {
-    this.judgeCharacter();
+    this.judgeDriverAuth();
   },
   mounted() {
     utils.scroll("startPointerAddressName");
-    utils.scroll("endPointerAddressName");
+    // utils.scroll("endPointerAddressName");
   },
   watch: {
     'character'(){
@@ -136,6 +136,18 @@ export default {
         name: "map"
       });
     },
+    judgeDriverAuth() {
+      //判断是否是车主
+      this.$http
+        .get(`/user/get_info`)
+        .then(res => {
+          this.driverAuth = Boolean(res.data.carplate)
+          this.judgeCharacter()
+        })
+        .catch(err => {
+          
+        });
+    },
     judgeCharacter() {
       //判断用户类型
       if (this.$storage.get("character")) {
@@ -144,6 +156,8 @@ export default {
         } else if (this.$storage.get("character") === "driver") {
           this.isPassenger = false;
         }
+      } else {
+         this.$storage.set("character", 'passenger');
       }
       this.isDriver = !this.isPassenger;
       if (this.isDriver && !this.driverAuth) {

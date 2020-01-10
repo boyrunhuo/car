@@ -26,7 +26,7 @@
       :disabled="isBtnDisabled"
       @click="addRoute"
       class="add-route-btn"
-    >添加路线</el-button>
+    >{{submitBtnText}}</el-button>
   </div>
 </template>
 <script>
@@ -46,7 +46,9 @@ export default {
       commonEndPoint: {},
       isBtnDisabled: true,
       btnType: "info",
-      fromRoute: ""
+      fromRoute: "",
+      submitBtnText: "添加常用路线",
+      orderId: null
     };
   },
   mixins: [routeMixin],
@@ -94,9 +96,13 @@ export default {
           ? this.commonEndPoint.formattedAddress
           : "";
       this.fromRoute = this.getRouteHistory();
+      this.orderId = this.$storage.get("orderId")
+      this.submitBtnText =  this.orderId !== null ? '修改常用路线' : '添加常用路线'
     },
     goBack() {
-      if (this.fromRoute === "mangeCommonRoute") {
+      if (
+        this.orderId !== null
+      ) {
         this.$router.push({
           name: "mangeCommonRoute"
         });
@@ -105,6 +111,7 @@ export default {
           name: "home"
         });
       }
+      this.$storage.remove("orderId");
     },
     addRoute() {
       let params = {
@@ -113,18 +120,33 @@ export default {
         destinationName: this.commonEndPoint.formattedAddress,
         destination: this.commonEndPoint.lnglat.join()
       };
-
-      this.$http
-        .post(`/order/create_regular_order`, params)
-        .then(res => {
-          Toast(res.data.message || "创建常用路线成功");
-          this.$router.push({
-            name: "home"
+      if (this.orderId !== null) {
+        params.id = this.orderId;
+        this.$http
+          .post(`/order/update_regular_order`, params)
+          .then(res => {
+            Toast(res.data.message || "修改常用路线成功");
+            this.$router.push({
+              name: "mangeCommonRoute"
+            });
+            this.$storage.remove("orderId");
+          })
+          .catch(err => {
+            Toast(err.data.message || "修改常用路线失败");
           });
-        })
-        .catch(err => {
-          Toast(err.data.message || "创建常用路线失败");
-        });
+      } else {
+        this.$http
+          .post(`/order/create_regular_order`, params)
+          .then(res => {
+            Toast(res.data.message || "创建常用路线成功");
+            this.$router.push({
+              name: "home"
+            });
+          })
+          .catch(err => {
+            Toast(err.data.message || "创建常用路线失败");
+          });
+      }
     },
     checkAddress(e, type) {
       //输入地址

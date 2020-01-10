@@ -95,7 +95,7 @@ export default {
       fromRoute: ""
     };
   },
-  mixins: [mapMixin,routeMixin],
+  mixins: [mapMixin, routeMixin],
 
   beforeRouteEnter(to, from, next) {
     next(vm => {
@@ -105,10 +105,6 @@ export default {
         vm.inputPlaceholder = "你要去哪儿";
       }
     });
-  },
-  beforeRouteLeave(to, from, next) {
-    this.removeRouteHistory()
-    next();
   },
   mounted() {
     //初始化地图
@@ -145,7 +141,7 @@ export default {
   methods: {
     initData() {
       this.pointType = this.$storage.get("pointType");
-      this.fromRoute = this.getRouteHistory()
+      this.fromRoute = this.getRouteHistory();
     },
     dragSuccess(data) {
       //拖拽定位成功
@@ -265,11 +261,13 @@ export default {
       this.$storage.set(selectedAddressInfo, data);
 
       //存储常用路线
-      let commonRoute =
-        this.pointType === "startPointer"
-          ? "commonStartPoint"
-          : "commonEndPoint";
-      this.$storage.set(commonRoute, data);
+      if (this.fromRoute === "addCommonRoute") {
+        let commonRoute =
+          this.pointType === "startPointer"
+            ? "commonStartPoint"
+            : "commonEndPoint";
+        this.$storage.set(commonRoute, data);
+      }
     },
     judgePath() {
       //判断要跳转到哪个路由
